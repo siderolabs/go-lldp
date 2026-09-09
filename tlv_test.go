@@ -1,44 +1,47 @@
-package lldp
+package lldp_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/siderolabs/go-lldp"
 )
 
 func TestTLVMarshalBinary(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
+		err  error
+		tlv  *lldp.TLV
 		desc string
 		b    []byte
-		tlv  *TLV
-		err  error
 	}{
 		{
 			desc: "type too large",
-			tlv: &TLV{
-				Type: TLVTypeMax + 1,
+			tlv: &lldp.TLV{
+				Type: lldp.TLVTypeMax + 1,
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "length too large",
-			tlv: &TLV{
-				Length: TLVLengthMax + 1,
+			tlv: &lldp.TLV{
+				Length: lldp.TLVLengthMax + 1,
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "length and value length mismatch",
-			tlv: &TLV{
+			tlv: &lldp.TLV{
 				Length: 1,
 				Value:  []byte{1, 2},
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "TLV type 1, length 1, value 255",
-			tlv: &TLV{
+			tlv: &lldp.TLV{
 				Type:   1,
 				Length: 1,
 				Value:  []byte{0xff},
@@ -47,12 +50,12 @@ func TestTLVMarshalBinary(t *testing.T) {
 		},
 		{
 			desc: "TLV type 127, length 511, all zero value",
-			tlv: &TLV{
-				Type:   TLVTypeMax,
-				Length: TLVLengthMax,
-				Value:  make([]byte, TLVLengthMax),
+			tlv: &lldp.TLV{
+				Type:   lldp.TLVTypeMax,
+				Length: lldp.TLVLengthMax,
+				Value:  make([]byte, lldp.TLVLengthMax),
 			},
-			b: append([]byte{0xff, 0xff}, make([]byte, TLVLengthMax)...),
+			b: append([]byte{0xff, 0xff}, make([]byte, lldp.TLVLengthMax)...),
 		},
 	}
 
@@ -61,7 +64,7 @@ func TestTLVMarshalBinary(t *testing.T) {
 
 		b, err := tt.tlv.MarshalBinary()
 		if err != nil {
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(got, want) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 
@@ -75,11 +78,11 @@ func TestTLVMarshalBinary(t *testing.T) {
 }
 
 func TestTLVUnmarshalBinary(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
+		err  error
+		tlv  *lldp.TLV
 		desc string
 		b    []byte
-		tlv  *TLV
-		err  error
 	}{
 		{
 			desc: "nil buffer",
@@ -98,7 +101,7 @@ func TestTLVUnmarshalBinary(t *testing.T) {
 		{
 			desc: "TLV type 1, length 1, value 255",
 			b:    []byte{0x02, 0x01, 0xff},
-			tlv: &TLV{
+			tlv: &lldp.TLV{
 				Type:   1,
 				Length: 1,
 				Value:  []byte{0xff},
@@ -107,7 +110,7 @@ func TestTLVUnmarshalBinary(t *testing.T) {
 		{
 			desc: "TLV type 0, length 0, trailing bytes",
 			b:    []byte{0x00, 0x00, 0xff},
-			tlv: &TLV{
+			tlv: &lldp.TLV{
 				Type:   0,
 				Length: 0,
 				Value:  []byte{},
@@ -115,11 +118,11 @@ func TestTLVUnmarshalBinary(t *testing.T) {
 		},
 		{
 			desc: "TLV type 127, length 511, all zero value",
-			b:    append([]byte{0xff, 0xff}, make([]byte, TLVLengthMax)...),
-			tlv: &TLV{
-				Type:   TLVTypeMax,
-				Length: TLVLengthMax,
-				Value:  make([]byte, TLVLengthMax),
+			b:    append([]byte{0xff, 0xff}, make([]byte, lldp.TLVLengthMax)...),
+			tlv: &lldp.TLV{
+				Type:   lldp.TLVTypeMax,
+				Length: lldp.TLVLengthMax,
+				Value:  make([]byte, lldp.TLVLengthMax),
 			},
 		},
 	}
@@ -127,9 +130,9 @@ func TestTLVUnmarshalBinary(t *testing.T) {
 	for i, tt := range tests {
 		t.Logf("[%02d] test %q", i, tt.desc)
 
-		tlv := new(TLV)
+		tlv := new(lldp.TLV)
 		if err := tlv.UnmarshalBinary(tt.b); err != nil {
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(got, want) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 

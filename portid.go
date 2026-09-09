@@ -1,9 +1,5 @@
 package lldp
 
-import (
-	"io"
-)
-
 // A PortIDSubtype is a value used to indicate the type of content
 // carried in a PortID.
 type PortIDSubtype uint8
@@ -22,6 +18,8 @@ const (
 
 // A PortID is a structure parsed from a port ID TLV.  It contains
 // information which identifies a particular chassis on a given network.
+//
+//nolint:govet // Preserve exported field order for unkeyed composite literals.
 type PortID struct {
 	// Subtype specifies the type of identification carried in this PortID.
 	Subtype PortIDSubtype
@@ -39,13 +37,7 @@ type PortID struct {
 //
 // MarshalBinary never returns an error.
 func (p *PortID) MarshalBinary() ([]byte, error) {
-	//  1 byte: subtype
-	// N bytes: ID
-	b := make([]byte, 1+len(p.ID))
-	b[0] = byte(p.Subtype)
-	copy(b[1:], p.ID)
-
-	return b, nil
+	return marshalID(byte(p.Subtype), p.ID), nil
 }
 
 // UnmarshalBinary unmarshals a byte slice into a PortID.
@@ -53,14 +45,13 @@ func (p *PortID) MarshalBinary() ([]byte, error) {
 // If the byte slice does not contain enough data to unmarshal a valid
 // PortID, io.ErrUnexpectedEOF is returned.
 func (p *PortID) UnmarshalBinary(b []byte) error {
-	// Must indicate at least a subtype.
-	if len(b) < 1 {
-		return io.ErrUnexpectedEOF
+	subtype, id, err := unmarshalID(b)
+	if err != nil {
+		return err
 	}
 
-	p.Subtype = PortIDSubtype(b[0])
-	p.ID = make([]byte, len(b[1:]))
-	copy(p.ID, b[1:])
+	p.Subtype = PortIDSubtype(subtype)
+	p.ID = id
 
 	return nil
 }

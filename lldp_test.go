@@ -1,68 +1,70 @@
-package lldp
+package lldp_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
-	"log"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/siderolabs/go-lldp"
 )
 
 func TestFrameMarshalBinary(t *testing.T) {
-	var tests = []struct {
-		desc string
-		f    *Frame
-		b    []byte
+	tests := []struct {
 		err  error
+		f    *lldp.Frame
+		desc string
+		b    []byte
 	}{
 		{
 			desc: "ChassisID nil",
-			f:    &Frame{},
-			err:  ErrInvalidFrame,
+			f:    &lldp.Frame{},
+			err:  lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "PortID nil",
-			f: &Frame{
-				ChassisID: &ChassisID{},
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{},
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "TTL too large",
-			f: &Frame{
-				ChassisID: &ChassisID{},
-				PortID:    &PortID{},
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{},
+				PortID:    &lldp.PortID{},
 				TTL:       (math.MaxUint16 + 1) * time.Second,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "too much data in ChassisID",
-			f: &Frame{
-				ChassisID: &ChassisID{
-					ID: make([]byte, TLVLengthMax+1),
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{
+					ID: make([]byte, lldp.TLVLengthMax+1),
 				},
-				PortID: &PortID{},
+				PortID: &lldp.PortID{},
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "too much data in PortID",
-			f: &Frame{
-				ChassisID: &ChassisID{},
-				PortID: &PortID{
-					ID: make([]byte, TLVLengthMax+1),
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{},
+				PortID: &lldp.PortID{
+					ID: make([]byte, lldp.TLVLengthMax+1),
 				},
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "length mismatch in optional TLV",
-			f: &Frame{
-				ChassisID: &ChassisID{},
-				PortID:    &PortID{},
-				Optional: []*TLV{
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{},
+				PortID:    &lldp.PortID{},
+				Optional: []*lldp.TLV{
 					{
 						Type:   0,
 						Length: 2,
@@ -70,16 +72,16 @@ func TestFrameMarshalBinary(t *testing.T) {
 					},
 				},
 			},
-			err: ErrInvalidTLV,
+			err: lldp.ErrInvalidTLV,
 		},
 		{
 			desc: "OK",
-			f: &Frame{
-				ChassisID: &ChassisID{
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{
 					Subtype: 1,
 					ID:      []byte("foo"),
 				},
-				PortID: &PortID{
+				PortID: &lldp.PortID{
 					Subtype: 1,
 					ID:      []byte("bar"),
 				},
@@ -99,7 +101,7 @@ func TestFrameMarshalBinary(t *testing.T) {
 
 		b, err := tt.f.MarshalBinary()
 		if err != nil {
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(got, want) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 
@@ -113,11 +115,11 @@ func TestFrameMarshalBinary(t *testing.T) {
 }
 
 func TestFrameUnmarshalBinary(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
+		err  error
+		f    *lldp.Frame
 		desc string
 		b    []byte
-		f    *Frame
-		err  error
 	}{
 		{
 			desc: "nil buffer",
@@ -149,7 +151,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x00, 0x00,
 				0x00, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "second TLV not port ID type",
@@ -159,7 +161,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x00, 0x00,
 				0x00, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "third TLV not TTL type",
@@ -169,7 +171,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x04, 0x00,
 				0x00, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "third TLV is TTL type but not uint16",
@@ -179,7 +181,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x06, 0x01, 0x00,
 				0x00, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "fourth TLV is not end of LLDPDU type",
@@ -189,7 +191,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x06, 0x02, 0x00, 0x00,
 				0x02, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "fourth TLV is end of LLDPDU type, but not length zero",
@@ -199,7 +201,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x06, 0x02, 0x00, 0x00,
 				0x00, 0x01, 0x00,
 			},
-			err: ErrInvalidFrame,
+			err: lldp.ErrInvalidFrame,
 		},
 		{
 			desc: "OK Frame, no optional TLVs",
@@ -209,12 +211,12 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x06, 0x02, 0x00, 0xff,
 				0x00, 0x00,
 			},
-			f: &Frame{
-				ChassisID: &ChassisID{
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{
 					Subtype: 6,
 					ID:      []byte("eth0"),
 				},
-				PortID: &PortID{
+				PortID: &lldp.PortID{
 					Subtype: 4,
 					ID:      []byte("eth1"),
 				},
@@ -231,12 +233,12 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 				0x0a, 0x02, 1, 2,
 				0x00, 0x00,
 			},
-			f: &Frame{
-				ChassisID: &ChassisID{
+			f: &lldp.Frame{
+				ChassisID: &lldp.ChassisID{
 					Subtype: 6,
 					ID:      []byte("eth0"),
 				},
-				PortID: &PortID{
+				PortID: &lldp.PortID{
 					Subtype: 4,
 					ID:      []byte("eth1"),
 				},
@@ -248,9 +250,9 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 	for i, tt := range tests {
 		t.Logf("[%02d] test %q", i, tt.desc)
 
-		f := new(Frame)
+		f := new(lldp.Frame)
 		if err := f.UnmarshalBinary(tt.b); err != nil {
-			if want, got := tt.err, err; want != got {
+			if want, got := tt.err, err; !errors.Is(got, want) {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v", want, got)
 			}
 
@@ -259,7 +261,7 @@ func TestFrameUnmarshalBinary(t *testing.T) {
 
 		fb, err := f.MarshalBinary()
 		if err != nil {
-			log.Fatal(err)
+			t.Fatal(err)
 		}
 
 		if want, got := tt.b, fb; !bytes.Equal(want, got) {

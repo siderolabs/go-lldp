@@ -21,23 +21,23 @@ const (
 	EtherType ethernet.EtherType = 0x88cc
 )
 
-var (
-	// ErrInvalidFrame is returned when a Frame (LLDPDU) is invalid due to
-	// one of the following reasons:
-	//  - Any of the four mandatory TLV values are not present, or are in
-	//    an incorrect order:
-	//    - Chassis ID
-	//    - Port ID
-	//    - TTL
-	//    - End of LLDPDU
-	ErrInvalidFrame = errors.New("invalid frame")
-)
+// ErrInvalidFrame is returned when a Frame (LLDPDU) is invalid due to
+// one of the following reasons:
+//   - Any of the four mandatory TLV values are not present, or are in
+//     an incorrect order:
+//   - Chassis ID
+//   - Port ID
+//   - TTL
+//   - End of LLDPDU
+var ErrInvalidFrame = errors.New("invalid frame")
 
 // TODO(mdlayher): consider adding common, but not mandatory, TLV values as
 // top-level fields in Frame.
 
 // A Frame is a LLDP frame, or LLDP Data Unit (LLDPDU).  A Frame carries
 // device information in a series of type-length-value (TLV) structures.
+//
+//nolint:govet // Preserve exported field order for unkeyed composite literals.
 type Frame struct {
 	// ChassisID specifies mandatory chassis ID information regarding
 	// a device.  It contains information which identifies a particular
@@ -73,6 +73,7 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 	if f.ChassisID == nil {
 		return nil, ErrInvalidFrame
 	}
+
 	if f.PortID == nil {
 		return nil, ErrInvalidFrame
 	}
@@ -82,6 +83,7 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 	if tTTL > math.MaxUint16 {
 		return nil, ErrInvalidFrame
 	}
+
 	ttl := uint16(tTTL)
 
 	b := make([]byte, f.length())
@@ -94,11 +96,13 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cTLV := &TLV{
 		Type:   TLVTypeChassisID,
 		Length: uint16(len(cb)),
 		Value:  cb,
 	}
+
 	cbb, err := cTLV.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -112,11 +116,13 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	pTLV := &TLV{
 		Type:   TLVTypePortID,
 		Length: uint16(len(pb)),
 		Value:  pb,
 	}
+
 	pbb, err := pTLV.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -133,6 +139,7 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 		Length: 2,
 		Value:  tb,
 	}
+
 	tbb, err := tTLV.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -165,6 +172,7 @@ func (f *Frame) MarshalBinary() ([]byte, error) {
 func (f *Frame) UnmarshalBinary(b []byte) error {
 	// Iterate and keep creating TLVs as long as bytes remain
 	var tt []*TLV
+
 	for l := 0; len(b[l:]) > 0; {
 		// Unmarshal a single TLV
 		t := new(TLV)
@@ -186,6 +194,7 @@ func (f *Frame) UnmarshalBinary(b []byte) error {
 	if tt[0].Type != TLVTypeChassisID {
 		return ErrInvalidFrame
 	}
+
 	f.ChassisID = new(ChassisID)
 	if err := f.ChassisID.UnmarshalBinary(tt[0].Value); err != nil {
 		return err
@@ -195,6 +204,7 @@ func (f *Frame) UnmarshalBinary(b []byte) error {
 	if tt[1].Type != TLVTypePortID {
 		return ErrInvalidFrame
 	}
+
 	f.PortID = new(PortID)
 	if err := f.PortID.UnmarshalBinary(tt[1].Value); err != nil {
 		return err
@@ -204,6 +214,7 @@ func (f *Frame) UnmarshalBinary(b []byte) error {
 	if tt[2].Type != TLVTypeTTL || tt[2].Length != 2 {
 		return ErrInvalidFrame
 	}
+
 	f.TTL = time.Duration(binary.BigEndian.Uint16(tt[2].Value)) * time.Second
 
 	// Final TLV must be end of LLDPDU with length 0
@@ -222,6 +233,7 @@ func (f *Frame) UnmarshalBinary(b []byte) error {
 func (f *Frame) length() int {
 	// Mandatory TLVs
 	var n int
+
 	n += 2 + 1 + len(f.ChassisID.ID)
 	n += 2 + 1 + len(f.PortID.ID)
 	n += 2 + 2

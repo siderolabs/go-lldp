@@ -22,6 +22,8 @@ const (
 
 // A ChassisID is a structure parsed from a chassis ID TLV.  It contains
 // information which identifies a particular chassis on a given network.
+//
+//nolint:govet // Preserve exported field order for unkeyed composite literals.
 type ChassisID struct {
 	// Subtype specifies the type of identification carried in this ChassisID.
 	Subtype ChassisIDSubtype
@@ -39,13 +41,7 @@ type ChassisID struct {
 //
 // MarshalBinary never returns an error.
 func (c *ChassisID) MarshalBinary() ([]byte, error) {
-	//  1 byte: subtype
-	// N bytes: ID
-	b := make([]byte, 1+len(c.ID))
-	b[0] = byte(c.Subtype)
-	copy(b[1:], c.ID)
-
-	return b, nil
+	return marshalID(byte(c.Subtype), c.ID), nil
 }
 
 // UnmarshalBinary unmarshals a byte slice into a ChassisID.
@@ -53,14 +49,34 @@ func (c *ChassisID) MarshalBinary() ([]byte, error) {
 // If the byte slice does not contain enough data to unmarshal a valid
 // ChassisID, io.ErrUnexpectedEOF is returned.
 func (c *ChassisID) UnmarshalBinary(b []byte) error {
-	// Must indicate at least a subtype.
-	if len(b) < 1 {
-		return io.ErrUnexpectedEOF
+	subtype, id, err := unmarshalID(b)
+	if err != nil {
+		return err
 	}
 
-	c.Subtype = ChassisIDSubtype(b[0])
-	c.ID = make([]byte, len(b[1:]))
-	copy(c.ID, b[1:])
+	c.Subtype = ChassisIDSubtype(subtype)
+	c.ID = id
 
 	return nil
+}
+
+// marshalID encodes the subtype byte and ID shared by chassis and port ID TLVs.
+func marshalID(subtype byte, id []byte) []byte {
+	b := make([]byte, 1+len(id))
+	b[0] = subtype
+	copy(b[1:], id)
+
+	return b
+}
+
+// unmarshalID decodes a subtype byte and copies the remaining ID bytes.
+func unmarshalID(b []byte) (byte, []byte, error) {
+	if len(b) < 1 {
+		return 0, nil, io.ErrUnexpectedEOF
+	}
+
+	id := make([]byte, len(b[1:]))
+	copy(id, b[1:])
+
+	return b[0], id, nil
 }
