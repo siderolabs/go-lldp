@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package lldp
 
 import (
@@ -10,14 +14,14 @@ type ChassisIDSubtype uint8
 
 // List of valid ChassisIDSubtype values.
 const (
-	ChassisIDSubtypeReserved           ChassisIDSubtype = 0
-	ChassisIDSubtypeChassisComponenent ChassisIDSubtype = 1
-	ChassisIDSubtypeInterfaceAlias     ChassisIDSubtype = 2
-	ChassisIDSubtypePortComponent      ChassisIDSubtype = 3
-	ChassisIDSubtypeMACAddress         ChassisIDSubtype = 4
-	ChassisIDSubtypeNetworkAddress     ChassisIDSubtype = 5
-	ChassisIDSubtypeInterfaceName      ChassisIDSubtype = 6
-	ChassisIDSubtypeLocallyAssigned    ChassisIDSubtype = 7
+	ChassisIDSubtypeReserved         ChassisIDSubtype = 0
+	ChassisIDSubtypeChassisComponent ChassisIDSubtype = 1
+	ChassisIDSubtypeInterfaceAlias   ChassisIDSubtype = 2
+	ChassisIDSubtypePortComponent    ChassisIDSubtype = 3
+	ChassisIDSubtypeMACAddress       ChassisIDSubtype = 4
+	ChassisIDSubtypeNetworkAddress   ChassisIDSubtype = 5
+	ChassisIDSubtypeInterfaceName    ChassisIDSubtype = 6
+	ChassisIDSubtypeLocallyAssigned  ChassisIDSubtype = 7
 )
 
 // A ChassisID is a structure parsed from a chassis ID TLV.  It contains

@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 // Package lldp implements marshaling and unmarshaling of IEEE 802.1AB Link
 // Layer Discovery Protocol frames.
 package lldp
@@ -13,6 +17,7 @@ import (
 )
 
 //go:generate stringer -output=string.go -type=ChassisIDSubtype,PortIDSubtype
+//go:generate sh -c "{ cat ../../.license-header.go.txt; printf '\\n'; cat string.go; } > string.go.tmp && mv string.go.tmp string.go"
 
 const (
 	// EtherType is the registered EtherType for the Link Layer Discovery
@@ -180,9 +185,19 @@ func (f *Frame) UnmarshalBinary(b []byte) error {
 			return err
 		}
 
-		// Advance to next TLV and keep looping
+		// Advance to next TLV.
 		l += 2 + int(t.Length)
 		tt = append(tt, t)
+
+		// End terminates the LLDPDU; remaining bytes are Ethernet padding.
+		// The End TLV length is validated below along with the mandatory TLVs.
+		if t.Type == TLVTypeEnd {
+			if len(tt) < 4 {
+				return ErrInvalidFrame
+			}
+
+			break
+		}
 	}
 
 	// Must have at least four mandatory TLVs

@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package lldp_test
 
 import (
@@ -8,8 +12,85 @@ import (
 	"testing"
 	"time"
 
-	"github.com/siderolabs/go-lldp"
+	"github.com/siderolabs/go-lldp/pkg/lldp"
 )
+
+func TestFrameUnmarshalBinaryPadding(t *testing.T) {
+	// A minimum Ethernet frame is 60 bytes without the FCS: a 14-byte
+	// Ethernet header followed by a 46-byte payload (LLDPDU plus padding).
+	mandatory := []byte{
+		0x02, 0x07, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00, 0x01, // Chassis ID
+		0x04, 0x05, 0x05, 'e', 't', 'h', '0', // Port ID
+		0x06, 0x02, 0x00, 0x78, // TTL
+	}
+
+	for _, tt := range []struct {
+		name     string
+		optional []byte
+		padding  []byte
+	}{
+		{name: "even zero padding", padding: make([]byte, 24)},
+		{name: "odd zero padding", optional: []byte{0x0a, 0x01, 'x'}, padding: make([]byte, 21)},
+		{name: "nonzero padding", padding: bytes.Repeat([]byte{0xff}, 24)},
+		// Padding that looks like an optional TLV and another End must also
+		// be ignored: the first End terminates the LLDPDU.
+		{name: "parseable padding", padding: append([]byte{0x0a, 0x02, 'n', 'o'}, make([]byte, 20)...)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := append([]byte(nil), mandatory...)
+			payload = append(payload, tt.optional...)
+			payload = append(payload, 0, 0)
+			payload = append(payload, tt.padding...)
+
+			if len(payload) != 46 {
+				t.Fatalf("invalid Ethernet payload size: %d", len(payload))
+			}
+
+			var f lldp.Frame
+			if err := f.UnmarshalBinary(payload); err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(f.ChassisID.ID, mandatory[3:9]) || !bytes.Equal(f.PortID.ID, []byte("eth0")) || f.TTL != 120*time.Second {
+				t.Fatalf("unexpected mandatory TLVs: %+v", f)
+			}
+
+			wantOptional := 0
+			if len(tt.optional) != 0 {
+				wantOptional = 1
+			}
+
+			if len(f.Optional) != wantOptional {
+				t.Fatalf("optional TLVs: got %d, want %d (End and padding must be excluded)", len(f.Optional), wantOptional)
+			}
+
+			if wantOptional == 1 && (f.Optional[0].Type != lldp.TLVTypeSystemName || f.Optional[0].Length != 1 || !bytes.Equal(f.Optional[0].Value, []byte("x"))) {
+				t.Fatalf("unexpected optional TLV: %+v", f.Optional[0])
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name   string
+		suffix []byte
+	}{
+		{name: "missing End"},
+		{name: "nonempty End", suffix: []byte{0x00, 0x01, 0xff}},
+		{name: "nonempty End before valid End", suffix: []byte{0x00, 0x01, 0xff, 0x00, 0x00}},
+		{name: "truncated header before End", suffix: []byte{0x0a}},
+		{name: "truncated value before End", suffix: []byte{0x0a, 0x04, 'x', 0x00, 0x00}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := append([]byte(nil), mandatory...)
+			payload = append(payload, tt.suffix...)
+
+			var f lldp.Frame
+			if err := f.UnmarshalBinary(payload); err == nil {
+				t.Fatal("expected malformed LLDPDU to be rejected")
+			}
+		})
+	}
+}
 
 func TestFrameMarshalBinary(t *testing.T) {
 	tests := []struct {
