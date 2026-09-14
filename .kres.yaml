@@ -1,0 +1,3 @@
+kind: golang.UnitTests
+spec:
+  requiresInsecure: true
